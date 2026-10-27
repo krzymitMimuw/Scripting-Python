@@ -29,9 +29,16 @@ def read_json(directory: Path) -> int:
     try:
         with open(path, encoding="utf-8") as f:
             record = json.load(f)
+        if not isinstance(record, dict):
+            raise ValueError("Expected a JSON object")
+        if record["Model"] not in ("A", "B", "C"):
+            raise ValueError("Unknown model")
+        for key in ("Wynik", "Czas"):
+            if type(record[key]) is not int or not 0 <= record[key] <= 1000:
+                raise ValueError(f"Invalid {key}")
         return record["Czas"] if record["Model"] == "A" else 0
     except FileNotFoundError:
         print(f"Missing file: {path}", file=sys.stderr)
-    except (json.JSONDecodeError, KeyError, TypeError):
+    except (ValueError, KeyError, TypeError):
         print(f"Malformed file: {path}", file=sys.stderr)
     return 0

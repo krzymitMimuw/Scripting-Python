@@ -1,17 +1,12 @@
 import argparse
 from pathlib import Path
+from json_data import read_json, write_json
 
 def write_csv(filepath):
-    pass 
+    raise NotImplementedError("CSV writing must be implemented by person 1/3")
 
 def read_csv(filepath):
-    pass
-
-def write_json(filepath):
-    pass
-
-def read_json(filepath):
-    pass
+    raise NotImplementedError("CSV reading must be implemented by person 1/3")
 
 months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
@@ -41,7 +36,6 @@ group_csv_json.add_argument("-c", "--csv", action="store_true", help="create/exp
 group_csv_json.add_argument("-j", "--json", action="store_true", help="create/export as json")
 
 parser.add_argument("-r", "--root", default=".", help="root directory for the Month/Day/Period tree (default: %(default)s)")
-args = parser.parse_args()
 
 def get_days(interval):
     if "-" in interval:
@@ -53,14 +47,23 @@ def get_days(interval):
         return [interval]
 
 
-def manage_files():
-    if args.months and args.days and len(args.months) != len(args.days):
-        print("Number of months must be the same as number of day-intervals!")
-        return
-    
-    months_args = args.months if args.months else []
-    days_args = args.days if args.days else []
-    periods_args = args.periods if args.periods else []
+def generate_paths(root, selected_months=None, selected_days=None, periods=None):
+    """Return unique Month/Day/Period paths without creating directories.
+
+    Months and day intervals are paired. Missing values mean all months and
+    Monday-Sunday. Periods apply to expanded days in order, then default to Morning.
+    """
+    months_args = selected_months or months
+    days_args = selected_days or ["Monday-Sunday"] * len(months_args)
+    periods_args = periods or []
+    if len(months_args) != len(days_args):
+        raise ValueError("Number of months must be the same as number of day-intervals!")
+    if any(month not in months for month in months_args):
+        raise ValueError("Unknown month")
+    if any(interval not in day_intervals for interval in days_args):
+        raise ValueError("Unknown day or invalid day interval")
+    if any(period not in parts_of_the_day for period in periods_args):
+        raise ValueError("Unknown part of the day")
 
     result = []
     for month, interval in zip(months_args, days_args):
@@ -71,11 +74,14 @@ def manage_files():
     paths = []
     for i, (month, day) in enumerate(result):
         period = periods_args[i] if i < len(periods_args) else "Morning"
-        paths.append((month, day, period))
+        paths.append(Path(root) / month / day / period)
+    return list(dict.fromkeys(paths))
 
+
+def manage_files(args):
+    paths = generate_paths(args.root, args.months, args.days, args.periods)
     read_time = 0
-    for month, day, period in paths:
-        directory = Path(args.root) / month / day / period
+    for directory in paths:
         if args.write:
             directory.mkdir(parents = True, exist_ok = True)
             print(f"Created directory: {directory}")
@@ -84,7 +90,7 @@ def manage_files():
                 write_csv(path)
             elif args.json:
                 path = directory / "Dane.json"
-                write_json(path)
+                write_json(directory)
         elif args.read:
             if not directory.exists():
                 print(f"Path: {directory} doesn't exists")
@@ -98,12 +104,17 @@ def manage_files():
             elif args.json:
                 path = directory / "Dane.json"
                 if path.exists():
-                    read_time += read_json(path)
+                    read_time += read_json(directory)
                 else:
                     print(f"No such file as {path}")
 
     if args.read:
-        print(f"Total time to read all files is {read_time}")
+        print(f"Total Czas for Model A: {read_time}s")
+    return read_time
     
 if __name__ == "__main__":
-    manage_files()
+    args = parser.parse_args()
+    try:
+        manage_files(args)
+    except (ValueError, NotImplementedError) as exc:
+        parser.error(str(exc))
